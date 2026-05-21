@@ -2,10 +2,6 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 
-import streamlit as st
-import folium
-from streamlit_folium import st_folium
-
 # 1. 페이지 기본 설정
 st.set_page_config(
     page_title="Foreigners' Top 10 Seoul Hotspots 🗺️",
