@@ -5,18 +5,21 @@ import matplotlib.pyplot as plt
 # 1. 페이지 설정 및 타이틀
 st.set_page_config(page_title="서울시 행정구역별 인구 분석", layout="centered")
 
-# matplotlib 기본 스타일 세팅
+# matplotlib 기본 스타일 세팅 (기본 폰트 사용 및 마이너스 기호 깨짐 방지)
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False
 
 st.title("📊 서울시 행정구역별 연령대별 인구 분포")
 st.markdown("왼쪽 사이드바에서 행정구역을 선택하면 해당 지역의 연령대별 인구수 추이를 확인할 수 있습니다.")
 
-# 2. 데이터 로드 및 전처리 함수
+# 2. 데이터 로드 및 전처리 함수 (인코딩 에러 방지 예외 처리 추가)
 @st.cache_data
 def load_data():
-    # 파일 경로를 데이터가 업로드되는 위치에 맞게 설정 (동일 디렉토리에 배치한다고 가정)
-    df = pd.read_csv("population.csv", encoding="utf-8")
+    # 한국어 CSV 파일의 다양한 인코딩 형식(cp949, utf-8)에 모두 대응
+    try:
+        df = pd.read_csv("population.csv", encoding="cp949")
+    except UnicodeDecodeError:
+        df = pd.read_csv("population.csv", encoding="utf-8")
     
     # 숫자 데이터에 포함된 쉼표(,) 제거 및 정수형 변환
     cols_to_clean = [
@@ -78,4 +81,4 @@ try:
         st.dataframe(display_df, use_container_width=True)
 
 except FileNotFoundError:
-    st.error("📂 'population.csv' 파일을 찾을 수 없습니다. GitHub 저장소에 앱 코드(app.py)와 동일한 위치에 데이터를 올려주세요.")
+    st.error("📂 'population.csv' 파일을 찾을 수 없습니다. GitHub 저장소에 앱 코드 파일과 동일한 위치에 데이터를 올려주세요.")
