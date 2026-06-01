@@ -3,23 +3,25 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # 1. 페이지 설정 및 타이틀
-st.set_page_config(page_title="서울시 행정구역별 인구 분석", layout="centered")
+st.set_page_config(page_title="서울시 인구 데이터 분석기", layout="centered")
 
 # matplotlib 기본 스타일 세팅
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False
 
-st.title("📊 서울시 행정구역별 연령대별 인구 분포")
-st.markdown("왼쪽 사이드바에서 행정구역을 선택하면 해당 지역의 연령대별 인구수 추이를 확인할 수 있습니다.")
+st.title("📊 서울시 행정구역 & 연령대별 인구 분석")
+st.markdown("상단 탭을 전환하여 **행정구역별 추이** 또는 **연령대별 인구 순위**를 시각화할 수 있습니다.")
 
-# 2. 데이터 로드 및 전처리 함수 (인코딩 및 데이터 정형화 에러 방지)
+# 2. 데이터 로드 및 전처리 함수
 @st.cache_data
 def load_data():
-    # 인코딩 에러 방지 예외 처리
     try:
         df = pd.read_csv("population.csv", encoding="cp949")
     except UnicodeDecodeError:
         df = pd.read_csv("population.csv", encoding="utf-8")
+    
+    # 데이터 행정구역 공백 제거
+    df['행정구역'] = df['행정구역'].str.strip()
     
     # 분석할 연령대 컬럼 지정
     cols_to_clean = [
@@ -27,11 +29,10 @@ def load_data():
         '50~59세', '60~69세', '70~79세', '80~89세', '90~99세', '100세 이상'
     ]
     
-    # 각 컬럼의 데이터를 깨끗한 숫자형태로 변환 (콤마 제거 및 공백 제거)
+    # 각 컬럼의 데이터를 깨끗한 정수형 데이터로 변환
     for col in cols_to_clean:
         if df[col].dtype == 'object':
             df[col] = df[col].str.replace(',', '').str.strip()
-        # 혹시 모를 결측치나 빈 문자열을 0으로 채우고 정수형(int)으로 강제 변환
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
             
     return df, cols_to_clean
@@ -39,57 +40,92 @@ def load_data():
 try:
     df, age_columns = load_data()
 
-    # 3. 사이드바 - 행정구역 선택
-    region_list = df['행정구역'].tolist()
-    selected_region = st.sidebar.selectbox("행정구역을 선택하세요", region_list)
+    # 상단 탭 구성
+    tab1, tab2 = st.tabs(["📍 행정구역별 추이 보기", "👥 연령대별 지역 순위 보기"])
 
-    # 선택된 행정구역의 데이터 추출
-    region_data = df[df['행정구역'] == selected_region].iloc[0]
+    # =========================================================================
+    # TAB 1: 기존 기능 (행정구역 선택 -> 연령대별 꺾은선 그래프)
+    # =========================================================================
+    with tab1:
+        st.subheader("구별 연령대별 인구 분포")
+        region_list = df['행정구역'].tolist()
+        selected_region = st.selectbox("조회할 행정구역을 선택하세요", region_list, key="tab1_region")
 
-    # 그래프 및 테이블에 그릴 데이터 준비 (정수형 데이터 보장)
-    y_values = [int(region_data[col]) for col in age_columns]
+        # 선택된 행정구역의 데이터 추출
+        region_data = df[df['행정구역'] == selected_region].iloc[0]
+        y_values = [int(region_data[col]) for col in age_columns]
 
-    st.subheader(f"📍 {selected_region} 인구 분포")
+        # 꺾은선 그래프 그리기 (검정 바탕, 흰색 선)
+        fig1, ax1 = plt.subplots(figsize=(10, 5))
+        fig1.patch.set_facecolor('black')
+        ax1.set_facecolor('black')
 
-    # 4. 꺾은선 그래프 그리기 (바탕: 검정색, 그래프 선: 하얀색)
-    fig, ax = plt.subplots(figsize=(10, 6))
+        ax1.plot(age_columns, y_values, color='white', marker='o', linewidth=2, markersize=6)
+        ax1.set_xlabel("연령대", color='white', fontsize=11, labelpad=10)
+        ax1.set_ylabel("인구수 (명)", color='white', fontsize=11, labelpad=10)
+        ax1.set_title(f"[{selected_region}] 연령대별 인구 구조", color='white', fontsize=13, pad=15)
+        ax1.tick_params(colors='white', labelsize=9)
+        ax1.grid(True, color='gray', linestyle='--', linewidth=0.5, alpha=0.4)
+        
+        for spine in ax1.spines.values():
+            spine.set_color('white')
 
-    # 배경색 설정 (검은색)
-    fig.patch.set_facecolor('black')
-    ax.set_facecolor('black')
+        st.pyplot(fig1)
 
-    # 꺾은선 그래프 그리기 (하얀색 선 및 마커)
-    ax.plot(age_columns, y_values, color='white', marker='o', linewidth=2, markersize=6)
+        # 상세 데이터 표
+        with st.expander("📄 구별 상세 데이터 표 보기"):
+            formatted_values = [f"{val:,}" for val in y_values]
+            display_df1 = pd.DataFrame({'연령대': age_columns, '인구수(명)': formatted_values})
+            st.dataframe(display_df1, use_container_width=True)
 
-    # 축, 라벨, 타이틀, 그리드 색상을 하얀색/회색으로 조정
-    ax.set_xlabel("연령대 (나이)", color='white', fontsize=12, labelpad=10)
-    ax.set_ylabel("인구수 (명)", color='white', fontsize=12, labelpad=10)
-    ax.set_title(f"{selected_region} 연령대별 인구수", color='white', fontsize=14, pad=15)
 
-    ax.tick_params(colors='white', labelsize=10)  # 축 눈금 글자 색상
-    ax.grid(True, color='gray', linestyle='--', linewidth=0.5, alpha=0.5)  # 배경 그리드
+    # =========================================================================
+    # TAB 2: 추가 기능 (연령대 선택 -> 가장 많은 행정구역 순위 그래프)
+    # =========================================================================
+    with tab2:
+        st.subheader("연령대별 인구 밀집 지역")
+        selected_age = st.selectbox("조회할 연령대를 선택하세요", age_columns, key="tab2_age")
 
-    # 그래프 테두리 선(Spines)을 하얀색으로 변경
-    for spine in ax.spines.values():
-        spine.set_color('white')
+        # 순위를 매길 때는 '서울특별시 전체 합산 행'을 제외해야 자치구별 순위가 정상 집계됩니다.
+        district_df = df[~df['행정구역'].str.startswith('서울특별시  (')]
 
-    # Streamlit에 그래프 출력
-    st.pyplot(fig)
+        # 선택한 연령대 인구수가 가장 많은 순으로 상위 10개 구 추출
+        top_districts = district_df.sort_values(by=selected_age, ascending=False).head(10)
 
-    # 5. 상세 데이터 테이블 (오류가 발생했던 콤마 표기 부분 안전하게 수정)
-    with st.expander("📄 상세 데이터 표 보기"):
-        formatted_values = []
-        for val in y_values:
-            try:
-                formatted_values.append(f"{val:,}")
-            except ValueError:
-                formatted_values.append(str(val))  # 혹시 에러가 나면 그냥 문자열로 출력되도록 우회
-                
-        display_df = pd.DataFrame({
-            '연령대': age_columns,
-            '인구수(명)': formatted_values
-        })
-        st.dataframe(display_df, use_container_width=True)
+        # 시각적 가독성이 높은 가로 막대(Barh) 그래프로 시각화 (정렬 효과 극대화)
+        fig2, ax2 = plt.subplots(figsize=(10, 5))
+        fig2.patch.set_facecolor('black')
+        ax2.set_facecolor('black')
+
+        # 큰 값이 위로 올라오도록 데이터 역순 정렬 후 그래프 생성
+        top_districts_sorted = top_districts.iloc[::-1]
+        
+        # 요구사항 통일을 위해 막대그래프도 흰색(white)으로 지정
+        bars = ax2.barh(top_districts_sorted['행정구역'], top_districts_sorted[selected_age], color='white', edgecolor='gray', height=0.6)
+
+        ax2.set_xlabel("인구수 (명)", color='white', fontsize=11, labelpad=10)
+        ax2.set_ylabel("행정구역", color='white', fontsize=11, labelpad=10)
+        ax2.set_title(f"[{selected_age}] 인구수가 가장 많은 상위 10개 지역", color='white', fontsize=13, pad=15)
+        ax2.tick_params(colors='white', labelsize=9)
+        ax2.grid(True, color='gray', linestyle='--', linewidth=0.5, alpha=0.4, axis='x')
+
+        for spine in ax2.spines.values():
+            spine.set_color('white')
+
+        # 막대 오른쪽에 깔끔하게 인구수 텍스트(쉼표 포함) 매핑
+        for bar in bars:
+            width = bar.get_width()
+            ax2.text(width + (width * 0.01), bar.get_y() + bar.get_height()/2, f'{int(width):,}', 
+                     va='center', ha='left', color='white', fontsize=8)
+
+        st.pyplot(fig2)
+
+        # 상세 데이터 표 순위 전체 보기
+        with st.expander(f"📄 {selected_age} 인구 순위 전체 보기"):
+            display_df2 = district_df.sort_values(by=selected_age, ascending=False)[['행정구역', selected_age]].copy()
+            display_df2.columns = ['행정구역', '인구수(명)']
+            display_df2['인구수(명)'] = display_df2['인구수(명)'].map(lambda x: f"{x:,}")
+            st.dataframe(display_df2.reset_index(drop=True), use_container_width=True)
 
 except FileNotFoundError:
     st.error("📂 'population.csv' 파일을 찾을 수 없습니다. GitHub 저장소에 앱 코드 파일과 동일한 위치에 데이터를 올려주세요.")
