@@ -5,30 +5,34 @@ import matplotlib.pyplot as plt
 # 1. 페이지 설정 및 타이틀
 st.set_page_config(page_title="서울시 행정구역별 인구 분석", layout="centered")
 
-# matplotlib 기본 스타일 세팅 (기본 폰트 사용 및 마이너스 기호 깨짐 방지)
+# matplotlib 기본 스타일 세팅
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False
 
 st.title("📊 서울시 행정구역별 연령대별 인구 분포")
 st.markdown("왼쪽 사이드바에서 행정구역을 선택하면 해당 지역의 연령대별 인구수 추이를 확인할 수 있습니다.")
 
-# 2. 데이터 로드 및 전처리 함수 (인코딩 에러 방지 예외 처리 추가)
+# 2. 데이터 로드 및 전처리 함수 (인코딩 및 데이터 정형화 에러 방지)
 @st.cache_data
 def load_data():
-    # 한국어 CSV 파일의 다양한 인코딩 형식(cp949, utf-8)에 모두 대응
+    # 인코딩 에러 방지 예외 처리
     try:
         df = pd.read_csv("population.csv", encoding="cp949")
     except UnicodeDecodeError:
         df = pd.read_csv("population.csv", encoding="utf-8")
     
-    # 숫자 데이터에 포함된 쉼표(,) 제거 및 정수형 변환
+    # 분석할 연령대 컬럼 지정
     cols_to_clean = [
         '0~9세', '10~19세', '20~29세', '30~39세', '40~49세', 
         '50~59세', '60~69세', '70~79세', '80~89세', '90~99세', '100세 이상'
     ]
+    
+    # 각 컬럼의 데이터를 깨끗한 숫자형태로 변환 (콤마 제거 및 공백 제거)
     for col in cols_to_clean:
         if df[col].dtype == 'object':
-            df[col] = df[col].str.replace(',', '').astype(int)
+            df[col] = df[col].str.replace(',', '').str.strip()
+        # 혹시 모를 결측치나 빈 문자열을 0으로 채우고 정수형(int)으로 강제 변환
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
             
     return df, cols_to_clean
 
@@ -42,8 +46,8 @@ try:
     # 선택된 행정구역의 데이터 추출
     region_data = df[df['행정구역'] == selected_region].iloc[0]
 
-    # 그래프에 그릴 데이터 준비
-    y_values = [region_data[col] for col in age_columns]
+    # 그래프 및 테이블에 그릴 데이터 준비 (정수형 데이터 보장)
+    y_values = [int(region_data[col]) for col in age_columns]
 
     st.subheader(f"📍 {selected_region} 인구 분포")
 
@@ -72,11 +76,18 @@ try:
     # Streamlit에 그래프 출력
     st.pyplot(fig)
 
-    # 상세 데이터 테이블 토글형태로 제공
+    # 5. 상세 데이터 테이블 (오류가 발생했던 콤마 표기 부분 안전하게 수정)
     with st.expander("📄 상세 데이터 표 보기"):
+        formatted_values = []
+        for val in y_values:
+            try:
+                formatted_values.append(f"{val:,}")
+            except ValueError:
+                formatted_values.append(str(val))  # 혹시 에러가 나면 그냥 문자열로 출력되도록 우회
+                
         display_df = pd.DataFrame({
             '연령대': age_columns,
-            '인구수(명)': [f"{val:,}" for val in y_values]
+            '인구수(명)': formatted_values
         })
         st.dataframe(display_df, use_container_width=True)
 
