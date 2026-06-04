@@ -8,11 +8,17 @@ st.set_page_config(page_title="서울 기온 데이터 분석", layout="centered
 st.title("🌡️ 서울 역대 기온 조회 서비스")
 st.markdown("`seoul.csv` 데이터를 바탕으로 특정 기간의 최고/최저 기온을 꺾은선 그래프로 시각화합니다.")
 
-# 데이터 로드 및 전처리 (캐싱 적용으로 속도 향상)
+# 데이터 로드 및 전처리 (인코딩 자동 예외 처리 및 캐싱 적용)
 @st.cache_data
 def load_data():
-    # 파일 읽기
-    df = pd.read_csv("seoul.csv")
+    # 'utf-8'로 시도하고 실패하면 'cp949' 또는 'euc-kr'로 자동 전환하여 로드합니다.
+    try:
+        df = pd.read_csv("seoul.csv", encoding="utf-8")
+    except UnicodeDecodeError:
+        try:
+            df = pd.read_csv("seoul.csv", encoding="cp949")
+        except UnicodeDecodeError:
+            df = pd.read_csv("seoul.csv", encoding="euc-kr")
     
     # 컬럼명 공백 제거 및 날짜 데이터 앞의 탭 문자(\t) 제거
     df.columns = df.columns.str.strip()
@@ -71,15 +77,15 @@ try:
                 fig, ax = plt.subplots(figsize=(10, 5))
                 
                 # [조건 반영] 최고기온: 라벤더색(#B19FFB), 최저기온: 연한 하늘색(#87CEFA)
-                ax.plot(filtered_df['날짜'], filtered_df['최고기온(℃)'], color='#B19FFB', label='최고기온(℃)', linewidth=2.5, marker='o', markersize=3)
-                ax.plot(filtered_df['날짜'], filtered_df['최저기온(℃)'], color='#87CEFA', label='최저기온(℃)', linewidth=2.5, marker='o', markersize=3)
+                ax.plot(filtered_df['날짜'], filtered_df['최고기온(℃)'], color='#B19FFB', label='Max Temp', linewidth=2.5, marker='o', markersize=3)
+                ax.plot(filtered_df['날짜'], filtered_df['최저기온(℃)'], color='#87CEFA', label='Min Temp', linewidth=2.5, marker='o', markersize=3)
                 
-                # 스타일링 및 격자 설정
-                ax.set_xlabel("날짜", fontsize=10)
-                ax.set_ylabel("기온 (℃)", fontsize=10)
+                # 스타일링 및 격자 설정 (리눅스 서버 환경의 폰트 깨짐 방지를 위해 축 레이블은 영문 작성)
+                ax.set_xlabel("Date", fontsize=10)
+                ax.set_ylabel("Temperature (℃)", fontsize=10)
                 ax.grid(True, linestyle='--', alpha=0.5)
                 
-                # [조건 반영] 범례 표시 (한글 깨짐을 방지하기 위해 영어 컬럼명 대응 혹은 범례 커스텀)
+                # [조건 반영] 범례 표시
                 ax.legend(loc='upper right', frameon=True, facecolor='white')
                 
                 # 스트림릿에 그래프 전달
@@ -91,4 +97,4 @@ try:
                     
 except Exception as e:
     st.error(f"오류가 발생했습니다: {e}")
-    st.info("`seoul.csv` 파일이 `app.py`와 같은 폴더(루트 디렉토리)에 있는지 다시 확인해 주세요.")
+    st.info("`seoul.csv` 파일의 데이터 포맷을 다시 확인해 주세요.")
