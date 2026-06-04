@@ -3,16 +3,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-# 1. 페이지 기본 설정 및 디자인
+# 1. 페이지 기본 설정
 st.set_page_config(page_title="서울 기온 분석 및 미래 예측", layout="centered")
 
-st.title("🌡️ 서울 역대 기온 조회 및 미래 예측 서비스")
-st.markdown("과거 기온 데이터를 조회하거나, 미래의 연도를 선택하여 기온 변화 트렌드를 예측합니다.")
+st.title("🌡️ 서울 역대 기온 조회 및 미래 날짜 예측 서비스")
+st.markdown("과거 데이터를 조회하거나, 미래의 특정 '월-일'을 선택해 기온을 예측합니다.")
 
-# 2. 데이터 안전 로드 및 자동 전처리 함수 (캐싱 적용)
+# 2. 데이터 안전 로드 및 자동 전처리 (인코딩 에러 원천 차단)
 @st.cache_data
 def load_and_preprocess_data():
-    # 인코딩 문제 차단 (utf-8 -> cp949 -> euc-kr 자동 순회)
     try:
         df = pd.read_csv("seoul.csv", encoding="utf-8")
     except UnicodeDecodeError:
@@ -21,16 +20,16 @@ def load_and_preprocess_data():
         except UnicodeDecodeError:
             df = pd.read_csv("seoul.csv", encoding="euc-kr")
             
-    # 컬럼명 및 데이터 공백/탭 문자 전처리
+    # 컬럼명 및 데이터 공백 제거
     df.columns = df.columns.str.strip()
     df['날짜'] = df['날짜'].astype(str).str.replace(r'\s+', '', regex=True)
     df['날짜'] = pd.to_datetime(df['날짜'], errors='coerce')
     
-    # 핵심 데이터 결측치 제거 및 정렬
+    # 결측치 제거 및 정렬
     df = df.dropna(subset=['날짜', '최고기온(℃)', '최저기온(℃)'])
     df = df.sort_values('날짜').reset_index(drop=True)
     
-    # 예측을 위한 월/일/날짜정수 파생변수 생성
+    # 예측을 위한 날짜 파생 변수 생성
     df['Month'] = df['날짜'].dt.month
     df['Day'] = df['날짜'].dt.day
     df['Year'] = df['날짜'].dt.year
@@ -40,137 +39,129 @@ def load_and_preprocess_data():
 try:
     df = load_and_preprocess_data()
     
-    # 데이터 기준 범위 정의
     min_date = df['날짜'].min().date()
     max_date = df['날짜'].max().date()
     max_year = int(df['Year'].max())
     
-    # 사이드바 메뉴 구성
-    st.sidebar.header("⚙️ 모드 선택 및 설정")
-    mode = st.sidebar.radio("원하는 기능을 선택하세요:", ["과거 기온 조회", "미래 기온 예측"])
+    # 사이드바 메뉴 모드 설정
+    st.sidebar.header("⚙️ 모드 선택")
+    mode = st.sidebar.radio("원하는 기능을 선택하세요:", ["과거 기온 조회", "미래 특정 월일 예측"])
     
     # ------------------ [모드 1: 과거 기온 조회] ------------------
     if mode == "과거 기온 조회":
-        st.sidebar.markdown(f"**조회 가능 기간:**\n{min_date} ~ {max_date}")
+        st.sidebar.markdown(f"**데이터 보유 기간:**\n{min_date} ~ {max_date}")
         
         default_start = max(min_date, max_date - pd.Timedelta(days=30))
-        start_date = st.sidebar.date_input("1. 시작 날짜 선택", value=default_start, min_value=min_date, max_value=max_date)
-        end_date = st.sidebar.date_input("2. 종료 날짜 선택", value=max_date, min_value=min_date, max_value=max_date)
+        start_date = st.sidebar.date_input("시작 날짜 선택", value=default_start, min_value=min_date, max_value=max_date)
+        end_date = st.sidebar.date_input("종료 날짜 선택", value=max_date, min_value=min_date, max_value=max_date)
         
         if start_date > end_date:
-            st.error("❌ 오류: '시작 날짜'가 '종료 날짜'보다 늦을 수 없습니다. 날짜를 똑바로 확인해 주세요.")
+            st.error("❌ 오류: 시작 날짜가 종료 날짜보다 늦을 수 없습니다.")
         else:
             filtered_df = df[(df['날짜'].dt.date >= start_date) & (df['날짜'].dt.date <= end_date)]
             
             if filtered_df.empty:
-                st.warning("⚠️ 선택한 기간에 해당하는 기온 데이터가 존재하지 않습니다.")
+                st.warning("⚠️ 해당 기간에 데이터가 없습니다.")
             else:
-                st.subheader(f"📊 {start_date} ~ {end_date} 기간 기온 현황")
+                st.subheader(f"📅 {start_date} ~ {end_date} 기온 조회")
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     max_row = filtered_df.loc[filtered_df['최고기온(℃)'].idxmax()]
-                    st.metric("기간 내 최고 기온", f"{max_row['최고기온(℃)']} ℃", f"{max_row['날짜'].strftime('%Y-%m-%d')}")
+                    st.metric("최고 기온", f"{max_row['최고기온(℃)']} ℃", f"{max_row['날짜'].strftime('%Y-%m-%d')}")
                 with col2:
                     min_row = filtered_df.loc[filtered_df['최저기온(℃)'].idxmin()]
-                    st.metric("기간 내 최저 기온", f"{min_row['최저기온(℃)']} ℃", f"{min_row['날짜'].strftime('%Y-%m-%d')}")
+                    st.metric("최저 기온", f"{min_row['최저기온(℃)']} ℃", f"{min_row['날짜'].strftime('%Y-%m-%d')}")
                 
-                # 시각화
-                fig, ax = plt.subplots(figsize=(10, 5))
-                # 최고기온: 라벤더색(#B19FFB), 최저기온: 연한 하늘색(#87CEFA)
+                # 그래프 시각화 (조건 반영)
+                fig, ax = plt.subplots(figsize=(10, 4))
                 ax.plot(filtered_df['날짜'], filtered_df['최고기온(℃)'], color='#B19FFB', label='Max Temp', linewidth=2, marker='o', markersize=3)
                 ax.plot(filtered_df['날짜'], filtered_df['최저기온(℃)'], color='#87CEFA', label='Min Temp', linewidth=2, marker='o', markersize=3)
-                
-                ax.set_xlabel("Date", fontsize=10)
-                ax.set_ylabel("Temperature (℃)", fontsize=10)
+                ax.set_xlabel("Date")
+                ax.set_ylabel("Temperature (℃)")
                 ax.grid(True, linestyle='--', alpha=0.5)
-                ax.legend(loc='upper right', frameon=True, facecolor='white')
+                ax.legend(loc='upper right', frameon=True)
                 fig.autofmt_xdate()
                 st.pyplot(fig)
-                
-                with st.expander("📝 상세 데이터 테이블 보기"):
-                    st.dataframe(filtered_df[['날짜', '평균기온(℃)', '최저기온(℃)', '최고기온(℃)']].reset_index(drop=True))
 
-    # ------------------ [모드 2: 미래 기온 예측] ------------------
-    elif mode == "미래 기온 예측":
-        st.sidebar.markdown(f"**현재 데이터 보유 종료 연도:** {max_year}년")
-        # 미래의 연도 선택 (종료 연도 다음 해부터 2100년까지 선택 가능)
-        future_year = st.sidebar.number_input(
-            "예측하고 싶은 미래의 연도를 입력하세요:", 
-            min_value=max_year + 1, 
-            max_value=2100, 
-            value=max_year + 5,
-            step=1
-        )
+    # ------------------ [모드 2: 미래 특정 월일 예측] ------------------
+    elif mode == "미래 특정 월일 예측":
+        st.sidebar.markdown("### 🔮 미래 예측 설정")
         
-        st.subheader(f"🔮 {future_year}년 서울 최고/최저 기온 시계열 트렌드 예측")
-        st.markdown(f"지난 100년간의 일별 기온 변화 양상과 기후 변화 가속도를 수학적으로 계산하여 {future_year}년의 365일을 예측합니다.")
+        # 1. 예측 대상 연도 선택 (기본값: 데이터 종료 다음 해)
+        pred_year = st.sidebar.number_input("1. 예측 연도 입력", min_value=max_year + 1, max_value=2100, value=max_year + 5, step=1)
         
-        # 미래 예측 데이터 생성 로직 (각 월/일별 선형 회귀 경향성 반영)
-        # 평년 365일 구조 가이드라인 생성
-        future_dates = pd.date_range(start=f"{future_year}-01-01", end=f"{future_year}-12-31", freq='D')
+        # 2. [핵심 조건 추가] 월과 일 선택
+        pred_month = st.sidebar.slider("2. 예측할 월(Month) 선택", min_value=1, max_value=12, value=8)
         
-        pred_records = []
-        
-        # 각 일자(월, 일) 별로 과거 트렌드를 분석하여 미래 연도 시점의 값 추정
-        # 그룹 연산을 통해 속도 최적화 및 에러 발생 가능성 차단
-        for d in future_dates:
-            m, day_val = d.month, d.day
-            sub = df[(df['Month'] == m) & (df['Day'] == day_val)]
+        # 월별 말일 예외 처리 (오류 완전 방지용)
+        if pred_month in [4, 6, 9, 11]:
+            max_day_val = 30
+        elif pred_month == 2:
+            # 윤년 계산 귀찮음 방지 및 안전성을 위해 28일 고정 혹은 29일 처리
+            max_day_val = 29
+        else:
+            max_day_val = 31
             
-            if len(sub) > 1:
-                # Numpy의 가벼운 polyfit(최소제곱선형회귀)을 사용해 기후 변화 추세선 추출
-                coef_max = np.polyfit(sub['Year'], sub['최고기온(℃)'], 1)
-                coef_min = np.polyfit(sub['Year'], sub['최저기온(℃)'], 1)
-                
-                # Trend 기반 미래 기온 산출 (기울기 * 미래연도 + 절편)
-                pred_max = round(coef_max[0] * future_year + coef_max[1], 1)
-                pred_min = round(coef_min[0] * future_year + coef_min[1], 1)
-            else:
-                # 데이터가 부족할 경우 단순 평균값 대입 (안전 장치)
-                pred_max = round(df['최고기온(℃)'].mean(), 1)
-                pred_min = round(df['최저기온(℃)'].mean(), 1)
-                
-            pred_records.append({
-                'Date': d,
-                'Predicted_Max': pred_max,
-                'Predicted_Min': pred_min
-            })
+        pred_day = st.sidebar.slider("3. 예측할 일(Day) 선택", min_value=1, max_value=max_day_val, value=15)
+        
+        # 사용자 안내 문구 출력
+        st.subheader(f"🔮 {pred_year}년 {pred_month}월 {pred_day}일 서울 기온 예측 결과")
+        st.markdown(f"역대 데이터 중 **{pred_month}월 {pred_day}일**에 기록된 기온들의 역사적 선형 트렌드를 분석합니다.")
+        
+        # 데이터 매칭 및 수학적 추세 연산
+        sub_df = df[(df['Month'] == pred_month) & (df['Day'] == pred_day)]
+        
+        if len(sub_df) < 2:
+            st.error("❌ 분석할 수 있는 과거 데이터가 부족합니다.")
+        else:
+            # 과거 연도별 해당 날짜의 기온 변화 추세 파악 (Numpy 선형 회귀)
+            coef_max = np.polyfit(sub_df['Year'], sub_df['최고기온(℃)'], 1)
+            coef_min = np.polyfit(sub_df['Year'], sub_df['최저기온(℃)'], 1)
             
-        pred_df = pd.DataFrame(pred_records)
-        
-        # 예측치 요약 지표 화면 출력
-        col1, col2 = st.columns(2)
-        with col1:
-            highest_row = pred_df.loc[pred_df['Predicted_Max'].idxmax()]
-            st.metric(f"{future_year}년 예상 최고 기온", f"{highest_row['Predicted_Max']} ℃", f"{highest_row['Date'].strftime('%m-%d')} 예상")
-        with col2:
-            lowest_row = pred_df.loc[pred_df['Predicted_Min'].idxmin()]
-            st.metric(f"{future_year}년 예상 최저 기온", f"{lowest_row['Predicted_Min']} ℃", f"{lowest_row['Date'].strftime('%m-%d')} 예상")
+            # 지정한 미래 연도의 최종 기온 예측값 계산
+            final_pred_max = round(coef_max[0] * pred_year + coef_max[1], 1)
+            final_pred_min = round(coef_min[0] * pred_year + coef_min[1], 1)
             
-        # 미래 예측 결과 시각화
-        fig, ax = plt.subplots(figsize=(10, 5))
-        # 최고기온: 라벤더색(#B19FFB), 최저기온: 연한 하늘색(#87CEFA)
-        ax.plot(pred_df['Date'], pred_df['Predicted_Max'], color='#B19FFB', label='Predicted Max Temp', linewidth=2)
-        ax.plot(pred_df['Date'], pred_df['Predicted_Min'], color='#87CEFA', label='Predicted Min Temp', linewidth=2)
-        
-        ax.set_xlabel("Month / Day", fontsize=10)
-        ax.set_ylabel("Temperature (℃)", fontsize=10)
-        ax.grid(True, linestyle='--', alpha=0.5)
-        
-        # 범례 표시 활성화
-        ax.legend(loc='upper right', frameon=True, facecolor='white')
-        
-        # X축 포맷을 월 단위로 가독성 좋게 변경
-        import matplotlib.dates as mdates
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-        fig.autofmt_xdate()
-        
-        st.pyplot(fig)
-        
-        with st.expander(f"🔮 {future_year}년 365일 일별 예측 데이터 전체보기"):
-            st.dataframe(pred_df.rename(columns={'Date': '날짜', 'Predicted_Max': '예상 최고기온(℃)', 'Predicted_Min': '예상 최저기온(℃)'}).reset_index(drop=True))
+            # 결과 지표 표시
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric(f"{pred_year}년 {pred_month}/{pred_day} 예상 최고 기온", f"{final_pred_max} ℃")
+            with col2:
+                st.metric(f"{pred_year}년 {pred_month}/{pred_day} 예상 최저 기온", f"{final_pred_min} ℃")
+            
+            # 시각화 데이터 구성: 과거의 역사적 흐름 그래프 + 미래 예측 점(Point) 표시
+            fig, ax = plt.subplots(figsize=(10, 5))
+            
+            # 1. 과거 데이터 선 그래프로 표현 (조건 반영 색상)
+            ax.plot(sub_df['Year'], sub_df['최고기온(℃)'], color='#B19FFB', alpha=0.4, linestyle=':', label='Past Max Temps')
+            ax.plot(sub_df['Year'], sub_df['최저기온(℃)'], color='#87CEFA', alpha=0.4, linestyle=':', label='Past Min Temps')
+            
+            # 2. 미래의 예측 지점을 굵은 점과 꺾은선 연장선으로 시각화
+            ax.scatter(pred_year, final_pred_max, color='#B19FFB', s=120, zorder=5, edgecolor='black', label=f'Predicted Max ({pred_year})')
+            ax.scatter(pred_year, final_pred_min, color='#87CEFA', s=120, zorder=5, edgecolor='black', label=f'Predicted Min ({pred_year})')
+            
+            # 과거 마지막 데이터와 미래 예측점을 가상선으로 연결해서 변화폭 인지 보완
+            last_year = sub_df['Year'].max()
+            last_max = sub_df.loc[sub_df['Year'].idxmax(), '최고기온(℃)']
+            last_min = sub_df.loc[sub_df['Year'].idxmin(), '최저기온(℃)']
+            ax.plot([last_year, pred_year], [last_max, final_pred_max], color='#B19FFB', linestyle='--', linewidth=1.5)
+            ax.plot([last_year, pred_year], [last_min, final_pred_min], color='#87CEFA', linestyle='--', linewidth=1.5)
+            
+            # 스타일 디테일 설정
+            ax.set_xlabel("Year (연도)", fontsize=10)
+            ax.set_ylabel("Temperature (기온 ℃)", fontsize=10)
+            ax.grid(True, linestyle='--', alpha=0.4)
+            
+            # 범례 표시 필수 적용
+            ax.legend(loc='upper left', frameon=True, facecolor='white')
+            
+            st.pyplot(fig)
+            
+            # 백데이터 확인용 테이블
+            with st.expander(f"📊 역대 {pred_month}월 {pred_day}일의 원본 데이터 내역 보기"):
+                st.dataframe(sub_df[['Year', '평균기온(℃)', '최저기온(℃)', '최고기온(℃)']].rename(columns={'Year': '연도'}).reset_index(drop=True))
 
 except Exception as e:
-    st.error(f"🚨 시스템에 문제가 발생했습니다: {e}")
-    st.info("애플리케이션 디렉토리에 `seoul.csv` 파일이 정상적으로 존재하는지 체크해 주세요.")
+    st.error(f"🚨 예상치 못한 시스템 오류 발생: {e}")
+    st.info("파일 경로와 데이터 컬럼 구조를 다시 한 번 체크해 주세요.")
