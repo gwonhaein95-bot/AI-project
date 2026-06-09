@@ -31,13 +31,11 @@ st.markdown("""
 # 2. 데이터 로드 및 전처리 (인코딩 에러 자동 해결)
 @st.cache_data
 def load_data():
-    # 파일 읽기 실패 시를 대비해 cp949와 utf-8-sig를 순차적으로 시도합니다.
     try:
         df = pd.read_csv("K.csv", encoding='cp949')
     except:
         df = pd.read_csv("K.csv", encoding='utf-8-sig')
         
-    # 총 여객 수 계산 (도착 + 출발)
     df['총여객'] = df['여객도착'] + df['여객출발']
     return df
 
@@ -79,7 +77,6 @@ airline_persona = {
     }
 }
 
-# 딕셔너리에 명시되지 않은 기타 항공사용 기본 프로필
 default_persona = {
     "personality": "🌍 세계와 한국을 연결하는 소중한 교량 역할을 수행합니다. 차별화된 노선과 효율적인 운항 체계를 갖추고 묵묵히 여정을 돕는 신뢰도 높은 항공 파트너입니다.",
     "image": "https://images.unsplash.com/photo-1494412519320-aa613dfb7738?q=80&w=600&auto=format&fit=crop"
@@ -106,7 +103,7 @@ total_2025 = airline_df['총여객'].sum()
 arrival_2025 = airline_df['여객도착'].sum()
 departure_2025 = airline_df['여객출발'].sum()
 
-# 2050년까지 시뮬레이션 데이터 생성 (연평균 성장 모델 반영)
+# 2050년까지 시뮬레이션 데이터 생성
 years = np.arange(2025, 2051)
 predicted_passengers = []
 current_val = total_2025
@@ -115,9 +112,8 @@ for yr in years:
     if yr == 2025:
         predicted_passengers.append(int(current_val))
     else:
-        # 연도가 지날수록 성장률이 서서히 안정화되는 구조 적용
         growth_rate = 0.025 - (yr - 2026) * 0.0004
-        growth_rate = max(growth_rate, 0.008) # 최소 성장률 마진 확보
+        growth_rate = max(growth_rate, 0.008)
         current_val = current_val * (1 + growth_rate)
         predicted_passengers.append(int(current_val))
 
@@ -126,7 +122,7 @@ pred_df = pd.DataFrame({
     '예측여객수': predicted_passengers
 })
 
-# 8. 주요 실적 요약 지표(Metrics) 표시 (오류 유발 구문 전면 수정)
+# 8. 주요 실적 요약 지표(Metrics) 표시
 st.subheader(f"📊 {selected_airline} 실적 및 2050년 미래 수요 예측")
 m1, m2, m3 = st.columns(3)
 m1.metric("2025년 총 도착 여객", f"{arrival_2025:,} 명")
@@ -147,36 +143,4 @@ fig.add_trace(go.Bar(
         colorscale=[
             [0.0, '#FFFFFF'],      # 하단(바탕면): 흰색
             [0.5, '#7DD3FC'],      # 중간: 부드러운 연하늘색
-            [1.0, '#38BDF8']       # 상단(하늘 위쪽): 선명한 하늘색
-        ],
-        showscale=False,
-        line=dict(color='#FFFFFF', width=0.3)
-    ),
-    hovertemplate="<b>%{x}년 예측</b><br>총 여객 수: %{y:,}명<extra></extra>"
-))
-
-# 차트 레이아웃 스타일링 (네이비 바탕과 조화되도록 투명 설정)
-fig.update_layout(
-    plot_bgcolor='rgba(0,0,0,0)',     # 차트 내부 배경 투명
-    paper_bgcolor='rgba(0,0,0,0)',    # 차트 외부 프레임 투명
-    margin=dict(t=50, b=40, l=20, r=20),
-    xaxis=dict(
-        title="연도 (Year)",
-        tickmode='linear',
-        tick0=2025,
-        dtick=2,
-        gridcolor='#1E293B',          # 연한 다크 네이비 격자선
-        titlefont=dict(color='#94A3B8'),
-        tickfont=dict(color='#94A3B8')
-    ),
-    yaxis=dict(
-        title="수송 여객 규모 (명)",
-        gridcolor='#1E293B',
-        titlefont=dict(color='#94A3B8'),
-        tickfont=dict(color='#94A3B8'),
-        zeroline=False
-    ),
-    height=550
-)
-
-st.plotly_chart(fig, use_container_width=True)
+            [1.0, '#38BDF8']       # 상단(하늘
