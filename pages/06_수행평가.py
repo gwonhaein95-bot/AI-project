@@ -17,18 +17,18 @@ st.markdown("""
     h1, h2, h3, p, span, label {
         color: #F8FAFC !important;
     }
-    /* 메트릭 박스 스타일 수정 */
+    /* 메트릭 박스 숫자 색상을 밝은 하늘색으로 수정 */
     [data-testid="stMetricValue"] {
         color: #38BDF8 !important;
     }
-    /* 셀렉트박스 텍스트 가독성 확보 */
+    /* 셀렉트박스 글자색 가독성 확보 */
     div[data-baseweb="select"] * {
         color: #0F172A !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. 데이터 로드 및 전처리 (인코딩 에러 방지 옵션 추가)
+# 2. 데이터 로드 및 전처리 (인코딩 에러 자동 해결)
 @st.cache_data
 def load_data():
     # 파일 읽기 실패 시를 대비해 cp949와 utf-8-sig를 순차적으로 시도합니다.
@@ -55,7 +55,7 @@ st.caption("2025년 기준 실측 데이터를 기반으로 2050년까지의 장
 airline_list = sorted(df['항공사'].unique())
 selected_airline = st.selectbox("분석할 항공사를 선택하세요:", airline_list)
 
-# 5. 항공사별 성격 및 이미지 데이터 매핑 (딕셔너리 정비)
+# 5. 항공사별 성격 및 이미지 데이터 매핑
 airline_persona = {
     "대한항공": {
         "personality": "✨ 안전과 신뢰를 최우선으로 하는 대한민국 대표 국적기. 클래식하면서도 품격 있는 글로벌 여정을 제공하며 전 세계 하늘길을 리드합니다.",
@@ -106,7 +106,7 @@ total_2025 = airline_df['총여객'].sum()
 arrival_2025 = airline_df['여객도착'].sum()
 departure_2025 = airline_df['여객출발'].sum()
 
-# 2050년까지 시뮬레이션 데이터 생성 (연평균 약 2.2% 성장 모델 적용)
+# 2050년까지 시뮬레이션 데이터 생성 (연평균 성장 모델 반영)
 years = np.arange(2025, 2051)
 predicted_passengers = []
 current_val = total_2025
@@ -115,7 +115,7 @@ for yr in years:
     if yr == 2025:
         predicted_passengers.append(int(current_val))
     else:
-        # 연도가 지날수록 성장률이 서서히 안정화되는 현실적인 수요 예측 함수 적용
+        # 연도가 지날수록 성장률이 서서히 안정화되는 구조 적용
         growth_rate = 0.025 - (yr - 2026) * 0.0004
         growth_rate = max(growth_rate, 0.008) # 최소 성장률 마진 확보
         current_val = current_val * (1 + growth_rate)
@@ -126,12 +126,12 @@ pred_df = pd.DataFrame({
     '예측여객수': predicted_passengers
 })
 
-# 8. 주요 실적 요약 지표(Metrics) 표시
+# 8. 주요 실적 요약 지표(Metrics) 표시 (오류 유발 구문 전면 수정)
 st.subheader(f"📊 {selected_airline} 실적 및 2050년 미래 수요 예측")
 m1, m2, m3 = st.columns(3)
 m1.metric("2025년 총 도착 여객", f"{arrival_2025:,} 명")
 m2.metric("2025년 총 출발 여객", f"{departure_2025:,} 명")
-m3.metric("2050년 장기 예측 여객", f"{predicted_passengers[-1]: Zus:,} 명".replace("Zus:", ""))
+m3.metric("2050년 장기 예측 여객", f"{predicted_passengers[-1]:,} 명")
 
 # 9. Plotly를 활용한 하늘색에서 흰색으로 그라데이션되는 막대그래프 구현
 fig = go.Figure()
@@ -145,7 +145,7 @@ fig.add_trace(go.Bar(
     marker=dict(
         color=pred_df['예측여객수'],
         colorscale=[
-            [0.0, '#FFFFFF'],      # 하단(배경과 접하는 면): 완전히 흰색
+            [0.0, '#FFFFFF'],      # 하단(바탕면): 흰색
             [0.5, '#7DD3FC'],      # 중간: 부드러운 연하늘색
             [1.0, '#38BDF8']       # 상단(하늘 위쪽): 선명한 하늘색
         ],
@@ -155,17 +155,17 @@ fig.add_trace(go.Bar(
     hovertemplate="<b>%{x}년 예측</b><br>총 여객 수: %{y:,}명<extra></extra>"
 ))
 
-# 차트 레이아웃 스타일링 (네이비 바탕과 조화)
+# 차트 레이아웃 스타일링 (네이비 바탕과 조화되도록 투명 설정)
 fig.update_layout(
-    plot_bgcolor='rgba(0,0,0,0)',     # 배경 투명 (스트림릿 네이비 배경이 투과됨)
-    paper_bgcolor='rgba(0,0,0,0)',    # 외부 배경 투명
+    plot_bgcolor='rgba(0,0,0,0)',     # 차트 내부 배경 투명
+    paper_bgcolor='rgba(0,0,0,0)',    # 차트 외부 프레임 투명
     margin=dict(t=50, b=40, l=20, r=20),
     xaxis=dict(
         title="연도 (Year)",
         tickmode='linear',
         tick0=2025,
         dtick=2,
-        gridcolor='#1E293B',          # 연한 네이비 톤의 격자선
+        gridcolor='#1E293B',          # 연한 다크 네이비 격자선
         titlefont=dict(color='#94A3B8'),
         tickfont=dict(color='#94A3B8')
     ),
